@@ -300,7 +300,7 @@ for (let x = 0; x < img.width; x += 16) {
       // console.log('got geo', geometry);
       const mesh = new THREE.Mesh(geometry, spriteMaterial);
       mesh.frustumCulled = false;
-      mesh.position.set(x/16, -y/16, 0).multiplyScalar(size*16);
+      mesh.position.set(x - canvas.width/2, -y + canvas.height/2, 0).multiplyScalar(size);
       scene.add(mesh);
       meshes.push(mesh);
     }
