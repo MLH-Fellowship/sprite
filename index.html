@@ -223,8 +223,8 @@ const _makeImageDataGeometry = (width, height, size, imageDataData) => {
 
   geometry.applyMatrix(matrix);
 
-  geometry.addAttribute('dy', new THREE.BufferAttribute(dys, 2));
-  geometry.addAttribute('zeroDy', new THREE.BufferAttribute(new Float32Array(dys.length), 2));
+  geometry.setAttribute('dy', new THREE.BufferAttribute(dys, 2));
+  geometry.setAttribute('zeroDy', new THREE.BufferAttribute(new Float32Array(dys.length), 2));
   geometry.computeVertexNormals();
 
   return {
