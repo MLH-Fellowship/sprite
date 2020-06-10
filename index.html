@@ -100,7 +100,7 @@ const spriteNoise = indev({
   frequency: 0.1,
   octaves: 4,
 });
-const spriteProbability = 0.005;
+const spriteProbability = 0.02;
 
 const _getHeightAt = (x, y) => (-0.3 + Math.pow(elevationNoise.in2D(x + 1000, y + 1000), 0.5)) * 64;
 const originHeight = _getHeightAt(0, 0);
@@ -322,7 +322,7 @@ for (let x = -8; x <= 8; x++) {
               // .set(x - canvas.width/2, -y + canvas.height/2, 0)
               // .multiplyScalar(size)
               // .add(new THREE.Vector3(0, 0, -3));
-              .set(ax, elevation + 16*size/2, ay);
+              .set(ax - 0.5 + rng(), elevation + 16*size/2, ay - 0.5 + rng());
             scene.add(mesh);
             meshes.push(mesh);
           }
