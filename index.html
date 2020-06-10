@@ -6,6 +6,7 @@
   <link rel=icon type="image/png" href="favicon.png">
   <link href="index.css" rel=stylesheet>
   <link href="https://fonts.googleapis.com/css?family=Open+Sans:300,400,600,700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&display=swap" rel="stylesheet">
   <script src="https://kit.fontawesome.com/0735724151.js" crossorigin="anonymous"></script>
 </head>
 
@@ -52,6 +53,7 @@
 <script type=module>
 import * as THREE from './three.module.js';
 import {OrbitControls} from './OrbitControls.js';
+import {GLTFExporter} from './GLTFExporter.js';
 import alea from './alea.js';
 import indev from './indev.js';
 import murmur from './murmur.js';
@@ -83,6 +85,25 @@ const _requestImage = src => new Promise((accept, reject) => {
   };
   img.onerror = reject;
 });
+
+const rng = new alea('a');
+const generator = indev({
+  seed: DEFAULT_SEED,
+});
+const elevationNoise = generator.uniform({
+  frequency: 0.002,
+  octaves: 8,
+});
+const spriteNoise = indev({
+  seed: 'sprite',
+}).uniform({
+  frequency: 0.1,
+  octaves: 4,
+});
+const spriteProbability = 0.005;
+
+const _getHeightAt = (x, y) => (-0.3 + Math.pow(elevationNoise.in2D(x + 1000, y + 1000), 0.5)) * 64;
+const originHeight = _getHeightAt(0, 0);
 
 (async () => {
 
@@ -213,27 +234,6 @@ const _makeImageDataGeometry = (width, height, size, imageDataData) => {
   geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions.buffer, 0, attributeIndex), 3));
   geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colors.buffer, 0, attributeIndex), 3));
   return geometry;
-
-  /* const numPositions = attributeIndex / 3;
-  const dys = new Float32Array(numPositions * 2);
-  for (let i = 0; i < numPositions; i++) {
-    dys[(i * 2) + 0] = positions[(i * 3) + 0];
-    dys[(i * 2) + 1] = positions[(i * 3) + 2];
-  }
-
-  geometry.applyMatrix(matrix);
-
-  geometry.setAttribute('dy', new THREE.BufferAttribute(dys, 2));
-  geometry.setAttribute('zeroDy', new THREE.BufferAttribute(new Float32Array(dys.length), 2));
-  geometry.computeVertexNormals();
-
-  return {
-    positions: geometry.getAttribute('position').array,
-    normals: geometry.getAttribute('normal').array,
-    colors: geometry.getAttribute('color').array,
-    dys: geometry.getAttribute('dy').array,
-    zeroDys: geometry.getAttribute('zeroDy').array,
-  }; */
 };
 
 const SPRITE_SHADER = {
@@ -261,7 +261,7 @@ const SPRITE_SHADER = {
   },
   vertexShader: `
     attribute vec3 color;
-    varying vec3 vColor;    
+    varying vec3 vColor;
     void main() {
       vColor = color;
       gl_Position = projectionMatrix * modelViewMatrix * vec4(position.xyz, 1.0);
@@ -277,11 +277,9 @@ const SPRITE_SHADER = {
 };
 const uniforms = THREE.UniformsUtils.clone(SPRITE_SHADER.uniforms);
 // uniforms.map.value = texture;
-const spriteMaterial = new THREE.ShaderMaterial({
-  uniforms: uniforms,
-  vertexShader: SPRITE_SHADER.vertexShader,
-  fragmentShader: SPRITE_SHADER.fragmentShader,
-  // transparent: true,
+const spriteMaterial = new THREE.MeshBasicMaterial({
+  color: 0xFFFFFF,
+  vertexColors: true,
 });
 
 const img = await _requestImage('sprites.png');
@@ -291,24 +289,63 @@ canvas.height = img.height;
 const ctx = canvas.getContext('2d');
 ctx.drawImage(img, 0, 0);
 const size = 0.03;
-const meshes = [];
+const geometries = [];
 for (let x = 0; x < img.width; x += 16) {
   for (let y = 0; y < img.height; y += 16) {
     const imageData = ctx.getImageData(x, y, 16, 16);
     if (imageData.data.some(n => n !== 0)) {
       const geometry = _makeImageDataGeometry(imageData.width, imageData.height, size, imageData.data);
-      // console.log('got geo', geometry);
-      const mesh = new THREE.Mesh(geometry, spriteMaterial);
-      mesh.frustumCulled = false;
-      mesh.position
-        .set(x - canvas.width/2, -y + canvas.height/2, 0)
-        .multiplyScalar(size)
-        .add(new THREE.Vector3(0, 0, -3));
-      scene.add(mesh);
-      meshes.push(mesh);
+      geometries.push(geometry);
     }
   }
 }
+
+const meshes = [];
+for (let x = -8; x <= 8; x++) {
+  for (let y = -8; y <= 8; y++) {
+    for (let dy = 0; dy < NUM_CELLS; dy++) {
+      for (let dx = 0; dx < NUM_CELLS; dx++) {
+        const index = dx + (dy * NUM_CELLS);
+
+        const ax = (x * NUM_CELLS) + dx;
+        const ay = (y * NUM_CELLS) + dy;
+        const elevation = _getHeightAt(ax, ay) - originHeight;
+
+        if (elevation > 0) {
+          const v = spriteNoise.in2D(ax + 1000, ay + 1000);
+
+          if (v < spriteProbability) {
+            const geometry = geometries[Math.floor(rng() * geometries.length)];
+            const mesh = new THREE.Mesh(geometry, spriteMaterial);
+            mesh.frustumCulled = false;
+            mesh.position
+              // .set(x - canvas.width/2, -y + canvas.height/2, 0)
+              // .multiplyScalar(size)
+              // .add(new THREE.Vector3(0, 0, -3));
+              .set(ax, elevation + 16*size/2, ay);
+            scene.add(mesh);
+            meshes.push(mesh);
+          }
+        }
+      }
+    }
+  }
+}
+
+/* const ab = await new Promise((accept, reject) => {
+  new GLTFExporter().parse(scene, gltf => {
+    accept(gltf);
+  }, {
+    binary: true,
+  });
+});
+console.log('got 1', ab);
+const b = new Blob([ab], {
+  type: 'application/octet-stream',
+});
+console.log('got 2', b);
+const u = URL.createObjectURL(b);
+console.log('got 3', u); */
 
 const axis = new THREE.Vector3(1, 1, 0).normalize();
 function animate() {
