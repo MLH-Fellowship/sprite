@@ -24,7 +24,7 @@ import {
 	RepeatWrapping,
 	Scene,
 	Vector3
-} from "./xrpackage/three.module.js";
+} from "./three.module.min.js";
 
 //------------------------------------------------------------------------------
 // Constants
